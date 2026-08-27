@@ -7,9 +7,9 @@ class KeywordProvider implements AIProvider {
   async embed(text: string) {
     const value = text.toLowerCase();
     return [
-      value.includes('postgresql') ? 1 : 0,
+      value.includes('postgresql') || value.includes('database') ? 1 : 0,
       value.includes('oauth') ? 1 : 0,
-      value.includes('redis') ? 1 : 0,
+      value.includes('redis') || value.includes('cache') ? 1 : 0,
       value.includes('running') || value.includes('long run') ? 1 : 0,
     ];
   }
