@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "AI Agent RAG Mobile",
+    "slug": "ai-agent-rag-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "description": "A React Native reference app combining agent orchestration, RAG, embeddings, retrieval and multiple LLM providers.",
+    "ios": { "supportsTablet": true, "bundleIdentifier": "com.keyars.aiagentragmobile" },
+    "android": { "package": "com.keyars.aiagentragmobile" },
+    "plugins": ["expo-document-picker"],
+    "web": { "bundler": "metro" }
+  }
+}
