@@ -20,5 +20,7 @@ jobs:
         run: npm run typecheck
       - name: Unit tests
         run: npm test
+      - name: Expo bundle validation
+        run: npx expo export --platform android
       - name: Formatting check
         run: npm run format:check
