@@ -5,7 +5,15 @@ import { KnowledgeBase } from '../src/rag/knowledge_base';
 
 class FakeProvider implements AIProvider {
   readonly name = 'fake';
-  async embed(text: string) { const vector = new Array<number>(8).fill(0); for (const char of text.toLowerCase()) vector[char.charCodeAt(0) % 8] += 1; const norm = Math.sqrt(vector.reduce((sum, v) => sum + v * v, 0)) || 1; return vector.map((v) => v / norm); }
+  async embed(text: string) {
+    const vector = new Array<number>(8).fill(0);
+    for (const char of text.toLowerCase()) {
+      const index = char.charCodeAt(0) % 8;
+      vector[index] = (vector[index] ?? 0) + 1;
+    }
+    const norm = Math.sqrt(vector.reduce((sum, v) => sum + v * v, 0)) || 1;
+    return vector.map((v) => v / norm);
+  }
   async chat(prompt: string) { return `Grounded: ${prompt.includes('PostgreSQL') ? 'PostgreSQL' : 'context received'}`; }
 }
 
