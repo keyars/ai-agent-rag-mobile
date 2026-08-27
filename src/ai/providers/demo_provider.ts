@@ -2,7 +2,10 @@ import { AIProvider, ChatOptions } from './types';
 
 function localEmbedding(text: string): number[] {
   const vector = new Array<number>(64).fill(0);
-  for (let i = 0; i < text.length; i += 1) vector[text.charCodeAt(i) % 64] += 1;
+  for (let i = 0; i < text.length; i += 1) {
+    const index = text.charCodeAt(i) % 64;
+    vector[index] = (vector[index] ?? 0) + 1;
+  }
   const norm = Math.sqrt(vector.reduce((sum, value) => sum + value * value, 0)) || 1;
   return vector.map((value) => value / norm);
 }
