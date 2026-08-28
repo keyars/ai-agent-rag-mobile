@@ -2,8 +2,7 @@ import { AIProvider } from '../providers/types';
 import { currentTimeTool } from '../../tools/current_time';
 import { KnowledgeBase } from '../../rag/knowledge_base';
 import { AgentResult } from '../../types';
-
-const SYSTEM = `You are a grounded mobile knowledge assistant. Answer using only the supplied context when the user asks about indexed knowledge. If the context does not support an answer, say that the information is not available in the knowledge base. Never invent citations. Keep answers concise and useful.`;
+import { buildGroundedPrompt, GROUNDING_SYSTEM } from '../../rag/grounding';
 
 export class AgentOrchestrator {
   constructor(private readonly provider: AIProvider, private readonly knowledgeBase: KnowledgeBase) {}
@@ -13,12 +12,13 @@ export class AgentOrchestrator {
     const results = await this.knowledgeBase.search(question, this.provider, 5, 0.18);
     if (results.length === 0) {
       if (this.provider.name === 'demo') return { answer: 'I could not find relevant information in the knowledge base.', sources: [], tool: 'knowledge_search' };
-      const answer = await this.provider.chat(question, { system: `${SYSTEM}\nNo relevant context was retrieved.` });
+      const answer = await this.provider.chat(question, { system: `${GROUNDING_SYSTEM}\nNo relevant context was retrieved.` });
       return { answer, sources: [], tool: 'direct' };
     }
-    const context = results.map((result, index) => `[Source ${index + 1}: ${result.chunk.documentName}]\n${result.chunk.text}`).join('\n\n');
-    const prompt = `User question:\n${question}\n\nRetrieved context:\n${context}\n\nAnswer the question from the retrieved context. Mention source names when useful.`;
-    const answer = await this.provider.chat(prompt, { system: SYSTEM, context: results });
+    const answer = await this.provider.chat(buildGroundedPrompt(question, results), {
+      system: GROUNDING_SYSTEM,
+      context: results,
+    });
     const sourceIds = new Set(results.map((result) => result.chunk.documentId));
     return { answer, sources: this.knowledgeBase.documents().filter((doc) => sourceIds.has(doc.id)), tool: 'knowledge_search' };
   }

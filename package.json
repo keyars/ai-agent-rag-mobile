@@ -10,6 +10,7 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:rag": "vitest run tests/rag_evaluation.test.ts",
     "test:watch": "vitest",
     "format:check": "prettier --check package.json app.json tsconfig.json README.md"
   },
