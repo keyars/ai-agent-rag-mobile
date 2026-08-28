@@ -1,5 +1,11 @@
 import { AgentTool, AgentToolResult } from './tools';
 import { ToolAwareAIProvider, ToolOutput } from '../providers/tool_types';
+import {
+  DEFAULT_TOOL_SECURITY_POLICY,
+  ToolSecurityPolicy,
+  sanitizeToolOutput,
+  validateToolCall,
+} from './tool_security';
 
 export interface ToolAgentResult {
   text: string;
@@ -12,6 +18,7 @@ export class ToolAgent {
     private readonly provider: ToolAwareAIProvider,
     private readonly tools: AgentTool[],
     private readonly maxIterations = 4,
+    private readonly securityPolicy: ToolSecurityPolicy = DEFAULT_TOOL_SECURITY_POLICY,
   ) {}
 
   async run(prompt: string, system: string): Promise<ToolAgentResult> {
@@ -43,27 +50,29 @@ export class ToolAgent {
 
       toolOutputs = [];
       for (const call of result.toolCalls) {
-        const tool = this.tools.find(
-          (candidate) => candidate.definition.name === call.name,
-        );
-
-        if (!tool) {
-          const output = `Unknown tool: ${call.name}`;
-          calls.push({ toolCallId: call.id, name: call.name, output });
-          toolOutputs.push({ toolCallId: call.id, output });
-          continue;
-        }
-
+        let output: string;
         try {
-          const output = await tool.execute(call.arguments);
-          calls.push({ toolCallId: call.id, name: call.name, output });
-          toolOutputs.push({ toolCallId: call.id, output });
+          validateToolCall(
+            call.name,
+            call.arguments,
+            this.securityPolicy,
+            calls.length,
+          );
+
+          const tool = this.tools.find(
+            (candidate) => candidate.definition.name === call.name,
+          );
+          if (!tool) throw new Error(`Tool '${call.name}' is not registered.`);
+
+          output = await tool.execute(call.arguments);
+          output = sanitizeToolOutput(output, this.securityPolicy.maxOutputBytes);
         } catch (error) {
-          const output =
-            error instanceof Error ? `Tool failed: ${error.message}` : 'Tool failed.';
-          calls.push({ toolCallId: call.id, name: call.name, output });
-          toolOutputs.push({ toolCallId: call.id, output });
+          const message = error instanceof Error ? error.message : 'Unknown tool error.';
+          output = sanitizeToolOutput(`Tool failed: ${message}`, this.securityPolicy.maxOutputBytes);
         }
+
+        calls.push({ toolCallId: call.id, name: call.name, output });
+        toolOutputs.push({ toolCallId: call.id, output });
       }
 
       if (iteration === this.maxIterations) {
