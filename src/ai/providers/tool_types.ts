@@ -1,18 +1,21 @@
 import { AgentToolCall, AgentToolDefinition } from '../agent/tools';
 
+export interface ToolOutput {
+  toolCallId: string;
+  output: string;
+}
+
 export interface ToolAwareChatOptions {
   system?: string;
   tools?: AgentToolDefinition[];
   toolChoice?: 'auto' | 'none';
-  messages?: Array<{
-    role: 'user' | 'assistant' | 'tool';
-    content: string;
-    toolCallId?: string;
-    toolName?: string;
-  }>;
+  prompt?: string;
+  previousResponseId?: string;
+  toolOutputs?: ToolOutput[];
 }
 
 export interface ToolAwareChatResult {
+  responseId: string;
   text?: string;
   toolCalls: AgentToolCall[];
 }
