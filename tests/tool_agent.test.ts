@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ToolAgent } from '../src/ai/agent/tool_agent';
 import { AgentTool } from '../src/ai/agent/tools';
 import { ToolAwareAIProvider } from '../src/ai/providers/tool_types';
+import { ToolSecurityPolicy } from '../src/ai/agent/tool_security';
 
 const clock: AgentTool = {
   definition: {
@@ -55,6 +56,53 @@ describe('bounded tool agent', () => {
     expect(result.iterations).toBe(2);
   });
 
+  it('rejects a tool that is not in the security allow-list', async () => {
+    const provider: ToolAwareAIProvider = {
+      async chatWithTools() {
+        return {
+          responseId: 'resp-1',
+          toolCalls: [{ id: 'call-1', name: 'shell', arguments: {} }],
+        };
+      },
+    };
+
+    const result = await new ToolAgent(provider, [clock]).run('Run shell', 'Use tools.');
+
+    expect(result.calls[0]?.output).toContain('not allowed');
+  });
+
+  it('bounds tool output before returning it to the model', async () => {
+    const noisyTool: AgentTool = {
+      definition: {
+        name: 'get_current_time',
+        description: 'Returns a large value',
+        parameters: { type: 'object', properties: {}, additionalProperties: false },
+      },
+      async execute() {
+        return 'x'.repeat(100);
+      },
+    };
+
+    const provider: ToolAwareAIProvider = {
+      async chatWithTools() {
+        return {
+          responseId: 'resp-1',
+          toolCalls: [{ id: 'call-1', name: 'get_current_time', arguments: {} }],
+        };
+      },
+    };
+    const policy: ToolSecurityPolicy = {
+      allowedTools: new Set(['get_current_time']),
+      maxArgumentBytes: 8192,
+      maxOutputBytes: 16,
+      maxCallsPerRun: 8,
+    };
+
+    const result = await new ToolAgent(provider, [noisyTool], 1, policy).run('time', 'Use tools.');
+
+    expect(result.calls[0]?.output).toContain('[tool output truncated]');
+  });
+
   it('stops safely at the configured iteration limit', async () => {
     const loopingTool: AgentTool = {
       definition: {
@@ -76,7 +124,13 @@ describe('bounded tool agent', () => {
       },
     };
 
-    const result = await new ToolAgent(provider, [loopingTool], 2).run(
+    const policy: ToolSecurityPolicy = {
+      allowedTools: new Set(['loop']),
+      maxArgumentBytes: 8192,
+      maxOutputBytes: 16384,
+      maxCallsPerRun: 8,
+    };
+    const result = await new ToolAgent(provider, [loopingTool], 2, policy).run(
       'Keep going',
       'Use tools.',
     );
