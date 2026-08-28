@@ -1,5 +1,5 @@
 import { AgentTool, AgentToolResult } from './tools';
-import { ToolAwareAIProvider } from '../providers/tool_types';
+import { ToolAwareAIProvider, ToolOutput } from '../providers/tool_types';
 
 export interface ToolAgentResult {
   text: string;
@@ -18,6 +18,7 @@ export class ToolAgent {
     const calls: AgentToolResult[] = [];
     let responseId: string | undefined;
     let nextPrompt = prompt;
+    let toolOutputs: ToolOutput[] | undefined;
 
     for (let iteration = 1; iteration <= this.maxIterations; iteration += 1) {
       const result = await this.provider.chatWithTools(nextPrompt, {
@@ -25,9 +26,12 @@ export class ToolAgent {
         tools: this.tools.map((tool) => tool.definition),
         toolChoice: 'auto',
         previousResponseId: responseId,
+        toolOutputs,
       });
 
       responseId = result.responseId;
+      nextPrompt = '';
+      toolOutputs = undefined;
 
       if (result.toolCalls.length === 0) {
         return {
@@ -37,7 +41,7 @@ export class ToolAgent {
         };
       }
 
-      const toolOutputs = [];
+      toolOutputs = [];
       for (const call of result.toolCalls) {
         const tool = this.tools.find(
           (candidate) => candidate.definition.name === call.name,
@@ -55,47 +59,18 @@ export class ToolAgent {
           calls.push({ toolCallId: call.id, name: call.name, output });
           toolOutputs.push({ toolCallId: call.id, output });
         } catch (error) {
-          const output = error instanceof Error ? `Tool failed: ${error.message}` : 'Tool failed.';
+          const output =
+            error instanceof Error ? `Tool failed: ${error.message}` : 'Tool failed.';
           calls.push({ toolCallId: call.id, name: call.name, output });
           toolOutputs.push({ toolCallId: call.id, output });
         }
-      }
-
-      nextPrompt = '';
-      const continuation = await this.provider.chatWithTools('', {
-        system,
-        tools: this.tools.map((tool) => tool.definition),
-        toolChoice: 'auto',
-        previousResponseId: responseId,
-        toolOutputs,
-      });
-
-      responseId = continuation.responseId;
-
-      if (continuation.toolCalls.length === 0) {
-        return {
-          text: continuation.text ?? 'The model did not return a final answer.',
-          calls,
-          iterations: iteration + 1,
-        };
-      }
-
-      for (const call of continuation.toolCalls) {
-        const tool = this.tools.find(
-          (candidate) => candidate.definition.name === call.name,
-        );
-        const output = tool
-          ? await tool.execute(call.arguments)
-          : `Unknown tool: ${call.name}`;
-        calls.push({ toolCallId: call.id, name: call.name, output });
-        nextPrompt = '';
       }
 
       if (iteration === this.maxIterations) {
         return {
           text: 'The agent stopped after reaching its tool-call safety limit.',
           calls,
-          iterations: this.maxIterations,
+          iterations: iteration,
         };
       }
     }
